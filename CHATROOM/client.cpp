@@ -1,14 +1,14 @@
-#include "client.h"
+﻿#include "client.h"
 #include <QDateTime>
 #include <cstring>
-#include <QMetaType>
+
 
 
 using std::cout;
 using std::endl;
 
 void tcp_connection_client::start(){
-    tcp::endpoint ep(address_v4::from_string("10.189.176.207"), PORT);
+    tcp::endpoint ep(address_v4::from_string("10.189.62.92"), PORT);
     __socket.async_connect(ep,boost::bind(&tcp_connection_client::do_read, this));
 }
 
@@ -20,6 +20,7 @@ void tcp_connection_client::do_read(){
 }
 
 void tcp_connection_client::on_read(const boost::system::error_code &err, size_t size){
+//    cout<<"on read"<<endl;
     if (!err || err == boost::asio::error::eof){
         ProcessData(size);
     }
@@ -51,21 +52,85 @@ inline pConn tcp_connection_client::create(Client* c, io_context &io){
 }
 
 void Client::Handler(Message_Packet* packet){
-    cout<<"receive: "<<packet->body()<<endl;
-    switch(packet->protocol()){
-        case PublicMessage_Return:{
-            char* username = new char[21];
-            memcpy(username, packet->body(), 20);
-            username[20] = '\0';
-            string user = string(username);
-            u_int32_t timestamp = packet->timestamp();
-            string time = QDateTime::fromTime_t(timestamp).toString("yyyy-MM-dd hh:mm:ss").toStdString();
-            char* msg = new char[packet->content_size()+1-20];
-            memcpy(msg, packet->body()+20, packet->content_size()-20);
-            msg[packet->content_size()-20] = '\0';
-            string message = string(msg);
-            public_msg(username, message, time);
-        }break;
+    switch(packet->protocol())
+    {
+        case PublicMessage_Return:
+        {
+            handle_public_msg(packet);
+            break;
+        }
+        case CheckAlive:
+        {
+            packet->write_protocol(RespondAlive);
+            *(packet->body()+1) = 'o';
+            connection->send(packet);
+            break;
+        }
+        case Register_Return:
+        {
+            hanlde_register(packet);
+            break;
+        }
+        case Register_Extra_Return:
+        {
+            BYTE state = *(packet->body());
+            emit sendData1(state);
+            break;
+        }
+        case Login_Return:
+        {
+            handle_login(packet);
+            break;
+        }
+        case FriendList_Return:
+        {
+            handle_friendlist(packet);
+            break;
+        }
+        case CheckOnline_Return:
+        {
+            BYTE state = *(packet->body());
+            emit sendData_checkonline(state);
+            break;
+        }
+        case PrivateMessage_Return:
+        {
+            handle_private_msg(packet);
+            break;
+        }
+        case AddFriend_Return:
+        {
+            handle_addreturn(packet);
+            break;
+        }
+        case CheckApplication_Return:
+        {
+            handle_application(packet);
+            break;
+        }
+        case AgreeApplication_Return:
+        {
+            handle_newfriend(packet);
+            break;
+        }
+        case UpdateFriendList:
+        {
+            BYTE state = *(packet->body());
+            string uid = string((reinterpret_cast<char*>(packet->body()+1)));
+            emit sendData_update(state,uid);
+            break;
+        }
+        case DeleteFriend_Return:
+        {
+            string uid = string((reinterpret_cast<char*>(packet->body()+1)));
+            emit sendData_deletefriend(uid);
+            break;
+        }
+        case UpdateApplication:
+        {
+            BYTE state = *(packet->body());
+            emit sendData_update2(state);
+        }
     }
 }
 
@@ -78,15 +143,8 @@ Client::Client(io_context& io)
 }
 
 
-
-void Client::public_msg(string username, string msg, string time)
-{
-    emit sendData(username, msg, time);
-}
-
 void Client::send(BYTE type, BYTE* Body, size_t len)
 {
-    cout<<Body<<endl;
     auto message = new Message_Packet();
     BYTE  content_type = 0;
     BYTE extra_msg_size = 0;
@@ -101,16 +159,114 @@ void Client::send(BYTE type, BYTE* Body, size_t len)
     message->write_timestamp(timeT);
 
     message->new_body(Body, len);
-
-    cout<<"send: "<<message->body()<<endl;
-
     connection->send(message);
 }
 
+void Client::handle_public_msg(Message_Packet* packet)
+{
+    char* username = new char[21];
+    memcpy(username, packet->body(), 20);
+    username[20] = '\0';
+    string user = string(username);
+    u_int32_t timestamp = packet->timestamp();
+    string time = QDateTime::fromTime_t(timestamp).toString("yyyy-MM-dd hh:mm:ss").toStdString();
+    char* msg = new char[packet->content_size()+1-20];
+    memcpy(msg, packet->body()+20, packet->content_size()-20);
+    msg[packet->content_size()-20] = '\0';
+    string message = string(msg);
+    emit sendData(username, message, time);
+}
 
+void Client::hanlde_register(Message_Packet* packet)
+{
 
+    BYTE state = *(packet->body());
+    emit sendData(state);
+}
 
+void Client::handle_login(Message_Packet* packet)
+{
+    if(*(packet->body()) == 0)
+    {
+        emit sendData_login1(0);
+        return;
+    }
+    string user_name = string((reinterpret_cast<char*>(packet->body())));
+    string nickname = string((reinterpret_cast<char*>(packet->body()+21)));
+    char gender = *(reinterpret_cast<char*>(packet->body()+42));
+    char *ch = new char[11];
+    memcpy(ch, packet->body()+43, 10);
+    ch[10] = '\0';
+    string birthday = string(ch);
+    emit sendData_login2(user_name, nickname, gender, birthday);
+}
 
+void Client::handle_friendlist(Message_Packet* packet)
+{
+    if(*(packet->body()) == 0)
+    {
+        return;
+    }
+    int number = packet->content_size()/53;
+    int offset = 0;
+    for(int i = 0; i < number; i++)
+    {
+        string user_name = string((reinterpret_cast<char*>(packet->body()+offset)));
+        string nickname = string((reinterpret_cast<char*>(packet->body()+offset+21)));
+        char _gender = *(reinterpret_cast<char*>(packet->body()+offset+42));
+        string gender;
+        if(_gender == 'M')
+            gender = "男";
+        else
+            gender = "女";
+        char *ch = new char[11];
+        memcpy(ch, packet->body()+offset+43, 10);
+        ch[10] = '\0';
+        string birthday = string(ch);
+        Friend one {user_name, nickname, gender, birthday};
+//        cout<<one.uid<<one.nickname<<one.gender<<one.birthday<<endl;
+        QVariant variant;
+        variant.setValue(one);
+        emit sendData_addfriend(variant);
+        offset += 53;
+    }
+}
+
+void Client::handle_application(Message_Packet* packet)
+{
+    if(*(packet->body()) == 0)
+    {
+        return;
+    }
+    int number = packet->content_size()/21;
+    for(int i = 0; i < number; i++)
+    {
+        string userid = string((reinterpret_cast<char*>(packet->body())));
+        emit sendData_addapplication(userid);
+    }
+}
+
+void Client::handle_private_msg(Message_Packet* packet)
+{
+    u_int32_t timestamp = packet->timestamp();
+    string time = QDateTime::fromTime_t(timestamp).toString("yyyy-MM-dd hh:mm:ss").toStdString();
+    string username1 = string((reinterpret_cast<char*>(packet->body())));
+    string username2 = string((reinterpret_cast<char*>(packet->body()+21)));
+    string message = string((reinterpret_cast<char*>(packet->body()+42)));
+    emit sendData_private(username1,username2, message, time);
+}
+
+void Client::handle_addreturn(Message_Packet* packet)
+{
+    BYTE state = *(packet->body());
+    emit sendData_addrequest(state);
+}
+
+void Client::handle_newfriend(Message_Packet* packet)
+{
+    BYTE state = *(packet->body());
+    emit sendData_newfriend(state);
+}
 
 
 /*

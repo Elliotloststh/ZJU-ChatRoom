@@ -1,6 +1,7 @@
-#ifndef __SERVER_H
-#define __SERVER_H
+﻿//与服务器的sokect连接共用这个基类，可以实现跨块的数据传输
 
+#ifndef CONNECTION_BASE_H
+#define CONNECTION_BASE_H
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
@@ -41,9 +42,14 @@ struct Block_t{
             chunk = (BYTE*)realloc(chunk, size);
         }
     }
+
+    ~Block_t(){
+        delete[] chunk;
+    }
 };
 using BlockType = Block_t;
-using Block_Queue = std::queue<BlockType>;
+using Block_Queue = std::queue<BlockType*>;
+
 
 class tcp_connection_base: public boost::enable_shared_from_this<tcp_connection_base> {
     public:
@@ -54,7 +60,7 @@ class tcp_connection_base: public boost::enable_shared_from_this<tcp_connection_
 
     protected:
         tcp_connection_base(io_context &io);
-        void on_write(const error_code &err, size_t size);
+        void on_write(const boost::system::error_code &err, size_t size);
         void do_write();
 
     protected:
@@ -64,4 +70,5 @@ class tcp_connection_base: public boost::enable_shared_from_this<tcp_connection_
         boost::shared_ptr<Message_Packet> packet;
 };
 
-#endif
+
+#endif // CONNECTION_BASE_H

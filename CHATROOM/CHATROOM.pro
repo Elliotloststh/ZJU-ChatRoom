@@ -20,6 +20,10 @@ LIBS += "/usr/local/lib/libboost_system.a"
 LIBS += "/usr/local/lib/libboost_thread.a"
 LIBS += "/usr/local/lib/libboost_chrono.a"
 DEFINES += QT_DEPRECATED_WARNINGS
+#INCLUDEPATH += "/usr/local/Cellar/boost/1.67.0_1/include"
+#LIBS += "/usr/local/Cellar/boost/1.67.0_1/lib/libboost_system.a"
+#LIBS += "/usr/local/Cellar/boost/1.67.0_1/lib/libboost_thread-mt.a"
+#DEFINES += QT_DEPRECATED_WARNINGS
 
 # You can also make your code fail to compile if you use deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -33,19 +37,31 @@ SOURCES += \
     message.cpp \
     client.cpp \
     Error_handle.cpp \
-    Server.cpp
+    login.cpp \
+    regist.cpp \
+    regist2.cpp \
+    connection_base.cpp \
+    chat_record.cpp
 
 HEADERS += \
         mainwindow.h \
     Message.hpp \
     client.h \
     Error_handle.hpp \
-    Server.hpp \
-    defs.hpp
+    client.h \
+    login.h \
+    regist.h \
+    regist2.h \
+    defs.hpp \
+    connection_base.h \
+    chat_record.h
 
 FORMS += \
-        mainwindow.ui
+        mainwindow.ui \
+    login.ui \
+    regist.ui \
+    regist2.ui \
+    chat_record.ui
 
 RESOURCES += \
     icon.qrc
-
