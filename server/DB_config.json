@@ -1,0 +1,9 @@
+{
+    "Host":"localhost",
+    "User" : "OOP",
+    "Password":"OOPPasswd",
+    "Database":"chatroom",
+    "Port":3306,
+    "Socket":"/var/run/mysqld/mysqld.sock",
+    "ClientFlag":0
+}
